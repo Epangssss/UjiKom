@@ -1,0 +1,6 @@
+{
+  "name": "JemberGuide",
+  "description": "Aplikasi Pencarian Wisata Terbaik di Jember - Find and navigate the best tourism destinations in Jember.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
