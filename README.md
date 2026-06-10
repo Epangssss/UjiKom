@@ -9,12 +9,7 @@ flutter
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/7bd2b337-e3b1-4525-aaa9-90b615b96b7f
-
 ## Run Locally
-
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
-
 
 1. Open Android Studio
 2. Select **Open** and choose the directory containing this project
