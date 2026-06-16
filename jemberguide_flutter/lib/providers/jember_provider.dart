@@ -48,6 +48,19 @@ class JemberProvider with ChangeNotifier {
   }
 
   // --- Authentication Actions ---
+  Future<bool> checkLoginSession() async {
+    final sessionUser = await _dbHelper.getSetting('session_user');
+    if (sessionUser != null && sessionUser.isNotEmpty) {
+      final user = await _dbHelper.getUser(sessionUser);
+      if (user != null) {
+        _currentUser = user;
+        notifyListeners();
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<void> login(String username, String password) async {
     _authError = null;
     if (username.trim().isEmpty || password.trim().isEmpty) {
@@ -64,16 +77,18 @@ class JemberProvider with ChangeNotifier {
     } else {
       _currentUser = user;
       _authError = null;
+      // Save session
+      await _dbHelper.saveSetting('session_user', username);
     }
     notifyListeners();
   }
 
-  Future<void> signUp(String username, String password, String fullName, String email, String phone, String address) async {
+  Future<void> signUp(String username, String password, String fullName, String email) async {
     _authError = null;
     _registrationSuccess = false;
     
-    if (username.trim().isEmpty || password.trim().isEmpty || fullName.trim().isEmpty || email.trim().isEmpty || phone.trim().isEmpty) {
-      _authError = "Semua kolom wajib diisi, kecuali alamat";
+    if (username.trim().isEmpty || password.trim().isEmpty || fullName.trim().isEmpty || email.trim().isEmpty) {
+      _authError = "Semua kolom wajib diisi";
       notifyListeners();
       return;
     }
@@ -90,8 +105,6 @@ class JemberProvider with ChangeNotifier {
       password: password,
       fullName: fullName,
       email: email,
-      phone: phone,
-      address: address,
     );
 
     await _dbHelper.insertUser(newUser);
@@ -99,12 +112,13 @@ class JemberProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void logOut() {
+  Future<void> logOut() async {
     _currentUser = null;
+    await _dbHelper.deleteSetting('session_user');
     clearAuthStates();
   }
 
-  Future<void> updateProfile(String fullName, String email, String phone, String address) async {
+  Future<void> updateProfile(String fullName, String email) async {
     if (_currentUser == null) return;
 
     final updatedUser = User(
@@ -112,8 +126,6 @@ class JemberProvider with ChangeNotifier {
       password: _currentUser!.password,
       fullName: fullName,
       email: email,
-      phone: phone,
-      address: address,
     );
 
     await _dbHelper.updateUser(updatedUser);

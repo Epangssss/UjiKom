@@ -26,9 +26,20 @@ class JemberGuideApp extends StatelessWidget {
         title: 'Jember Guide',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2E7D32),
+          colorScheme: const ColorScheme(
             brightness: Brightness.light,
+            primary: Color(0xFF8F4C38),
+            onPrimary: Colors.white,
+            secondary: Color(0xFFE57E22),
+            onSecondary: Colors.white,
+            tertiary: Color(0xFFE5A898),
+            onTertiary: Colors.white,
+            error: Colors.red,
+            onError: Colors.white,
+            background: Color(0xFFFDF8F6),
+            onBackground: Color(0xFF201A19),
+            surface: Color(0xFFFFFFFF),
+            onSurface: Color(0xFF201A19),
           ),
           useMaterial3: true,
           fontFamily: 'Roboto',

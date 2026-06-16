@@ -1,8 +1,10 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import '../models/user.dart';
 import '../models/wisata.dart';
+import 'web_storage.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -13,8 +15,67 @@ class DatabaseHelper {
   // In-memory data for Web fallback
   final List<User> _webUsers = [];
   final List<Wisata> _webWisata = [];
+  final Map<String, String> _webSettings = {};
   int _webWisataIdCounter = 1;
   bool _webSeeded = false;
+  bool _webDataLoaded = false;
+
+  void _loadWebData() {
+    if (_webDataLoaded) return;
+    _webDataLoaded = true;
+
+    final usersJson = WebStorage.get('web_users');
+    if (usersJson != null) {
+      try {
+        final List decoded = json.decode(usersJson);
+        _webUsers.clear();
+        _webUsers.addAll(decoded.map((item) => User.fromMap(item)));
+      } catch (e) {
+        debugPrint('Error loading web users: $e');
+      }
+    }
+
+    final settingsJson = WebStorage.get('web_settings');
+    if (settingsJson != null) {
+      try {
+        final Map<String, dynamic> decoded = json.decode(settingsJson);
+        _webSettings.clear();
+        decoded.forEach((k, v) {
+          _webSettings[k] = v.toString();
+        });
+      } catch (e) {
+        debugPrint('Error loading web settings: $e');
+      }
+    }
+
+    final counterStr = WebStorage.get('web_wisata_counter');
+    if (counterStr != null) {
+      _webWisataIdCounter = int.tryParse(counterStr) ?? 1;
+    }
+
+    final wisataJson = WebStorage.get('web_wisata');
+    if (wisataJson != null) {
+      try {
+        final List decoded = json.decode(wisataJson);
+        _webWisata.clear();
+        _webWisata.addAll(decoded.map((item) => Wisata.fromMap(item)));
+        _webSeeded = true;
+      } catch (e) {
+        debugPrint('Error loading web wisata: $e');
+      }
+    }
+  }
+
+  void _saveWebData() {
+    try {
+      WebStorage.save('web_users', json.encode(_webUsers.map((u) => u.toMap()).toList()));
+      WebStorage.save('web_wisata', json.encode(_webWisata.map((w) => w.toMap()).toList()));
+      WebStorage.save('web_settings', json.encode(_webSettings));
+      WebStorage.save('web_wisata_counter', _webWisataIdCounter.toString());
+    } catch (e) {
+      debugPrint('Error saving web data: $e');
+    }
+  }
 
   void _seedWebIfNeeded() {
     if (_webSeeded) return;
@@ -48,6 +109,7 @@ class DatabaseHelper {
       ),
     ];
     _webWisata.addAll(initialData);
+    _saveWebData();
   }
 
   Future<Database> get database async {
@@ -68,8 +130,9 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3,
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
   }
 
@@ -79,9 +142,7 @@ class DatabaseHelper {
         username TEXT PRIMARY KEY,
         password TEXT NOT NULL,
         fullName TEXT NOT NULL,
-        email TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        address TEXT NOT NULL
+        email TEXT NOT NULL
       )
     ''');
 
@@ -101,7 +162,36 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    ''');
+
     await _seedInitialWisata(db);
+  }
+
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('DROP TABLE IF EXISTS users');
+      await db.execute('''
+        CREATE TABLE users (
+          username TEXT PRIMARY KEY,
+          password TEXT NOT NULL,
+          fullName TEXT NOT NULL,
+          email TEXT NOT NULL
+        )
+      ''');
+    }
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE settings (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      ''');
+    }
   }
 
   Future _seedInitialWisata(Database db) async {
@@ -188,6 +278,7 @@ class DatabaseHelper {
   // --- User Operations ---
   Future<User?> getUser(String username) async {
     if (kIsWeb) {
+      _loadWebData();
       _seedWebIfNeeded();
       try {
         return _webUsers.firstWhere((u) => u.username == username);
@@ -212,7 +303,9 @@ class DatabaseHelper {
 
   Future<void> insertUser(User user) async {
     if (kIsWeb) {
+      _loadWebData();
       _webUsers.add(user);
+      _saveWebData();
       return;
     }
     
@@ -222,8 +315,12 @@ class DatabaseHelper {
 
   Future<void> updateUser(User user) async {
     if (kIsWeb) {
+      _loadWebData();
       final index = _webUsers.indexWhere((u) => u.username == user.username);
-      if (index != -1) _webUsers[index] = user;
+      if (index != -1) {
+        _webUsers[index] = user;
+        _saveWebData();
+      }
       return;
     }
     
@@ -239,6 +336,7 @@ class DatabaseHelper {
   // --- Wisata Operations ---
   Future<List<Wisata>> getAllWisata() async {
     if (kIsWeb) {
+      _loadWebData();
       _seedWebIfNeeded();
       return List.from(_webWisata);
     }
@@ -250,6 +348,7 @@ class DatabaseHelper {
 
   Future<Wisata?> getWisataById(int id) async {
     if (kIsWeb) {
+      _loadWebData();
       try {
         return _webWisata.firstWhere((w) => w.id == id);
       } catch (_) {
@@ -273,6 +372,7 @@ class DatabaseHelper {
 
   Future<List<Wisata>> searchWisata(String query) async {
     if (kIsWeb) {
+      _loadWebData();
       return _webWisata.where((w) => w.name.toLowerCase().contains(query.toLowerCase())).toList();
     }
     
@@ -280,15 +380,17 @@ class DatabaseHelper {
     final result = await db.query(
       'wisata',
       where: 'name LIKE ?',
-      whereArgs: ['%\$query%'],
+      whereArgs: ['%$query%'],
     );
     return result.map((json) => Wisata.fromMap(json)).toList();
   }
 
   Future<void> insertWisata(Wisata wisata) async {
     if (kIsWeb) {
+      _loadWebData();
       final newWisata = wisata.copyWith(id: _webWisataIdCounter++);
       _webWisata.add(newWisata);
+      _saveWebData();
       return;
     }
     
@@ -298,8 +400,12 @@ class DatabaseHelper {
 
   Future<void> updateWisata(Wisata wisata) async {
     if (kIsWeb) {
+      _loadWebData();
       final index = _webWisata.indexWhere((w) => w.id == wisata.id);
-      if (index != -1) _webWisata[index] = wisata;
+      if (index != -1) {
+        _webWisata[index] = wisata;
+        _saveWebData();
+      }
       return;
     }
     
@@ -314,7 +420,9 @@ class DatabaseHelper {
 
   Future<void> deleteWisata(int id) async {
     if (kIsWeb) {
+      _loadWebData();
       _webWisata.removeWhere((w) => w.id == id);
+      _saveWebData();
       return;
     }
     
@@ -323,6 +431,55 @@ class DatabaseHelper {
       'wisata',
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  // --- Settings / Key-Value helper ---
+  Future<void> saveSetting(String key, String value) async {
+    if (kIsWeb) {
+      _loadWebData();
+      _webSettings[key] = value;
+      _saveWebData();
+      return;
+    }
+    final db = await instance.database;
+    await db.insert(
+      'settings',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String?> getSetting(String key) async {
+    if (kIsWeb) {
+      _loadWebData();
+      return _webSettings[key];
+    }
+    final db = await instance.database;
+    final maps = await db.query(
+      'settings',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [key],
+    );
+    if (maps.isNotEmpty) {
+      return maps.first['value'] as String?;
+    }
+    return null;
+  }
+
+  Future<void> deleteSetting(String key) async {
+    if (kIsWeb) {
+      _loadWebData();
+      _webSettings.remove(key);
+      _saveWebData();
+      return;
+    }
+    final db = await instance.database;
+    await db.delete(
+      'settings',
+      where: 'key = ?',
+      whereArgs: [key],
     );
   }
 }
