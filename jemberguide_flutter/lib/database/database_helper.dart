@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import '../models/user.dart';
 import '../models/wisata.dart';
+import '../models/presensi.dart';
 import 'web_storage.dart';
 
 class DatabaseHelper {
@@ -15,6 +16,7 @@ class DatabaseHelper {
   // In-memory data for Web fallback
   final List<User> _webUsers = [];
   final List<Wisata> _webWisata = [];
+  final List<Presensi> _webPresensi = [];
   final Map<String, String> _webSettings = {};
   int _webWisataIdCounter = 1;
   bool _webSeeded = false;
@@ -64,12 +66,24 @@ class DatabaseHelper {
         debugPrint('Error loading web wisata: $e');
       }
     }
+
+    final presensiJson = WebStorage.get('web_presensi');
+    if (presensiJson != null) {
+      try {
+        final List decoded = json.decode(presensiJson);
+        _webPresensi.clear();
+        _webPresensi.addAll(decoded.map((item) => Presensi.fromMap(item)));
+      } catch (e) {
+        debugPrint('Error loading web presensi: $e');
+      }
+    }
   }
 
   void _saveWebData() {
     try {
       WebStorage.save('web_users', json.encode(_webUsers.map((u) => u.toMap()).toList()));
       WebStorage.save('web_wisata', json.encode(_webWisata.map((w) => w.toMap()).toList()));
+      WebStorage.save('web_presensi', json.encode(_webPresensi.map((p) => p.toMap()).toList()));
       WebStorage.save('web_settings', json.encode(_webSettings));
       WebStorage.save('web_wisata_counter', _webWisataIdCounter.toString());
     } catch (e) {
@@ -130,7 +144,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -169,6 +183,19 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE presensi (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        date TEXT NOT NULL,
+        time TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        address TEXT NOT NULL,
+        status TEXT NOT NULL
+      )
+    ''');
+
     await _seedInitialWisata(db);
   }
 
@@ -189,6 +216,20 @@ class DatabaseHelper {
         CREATE TABLE settings (
           key TEXT PRIMARY KEY,
           value TEXT
+        )
+      ''');
+    }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE presensi (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT NOT NULL,
+          date TEXT NOT NULL,
+          time TEXT NOT NULL,
+          latitude REAL NOT NULL,
+          longitude REAL NOT NULL,
+          address TEXT NOT NULL,
+          status TEXT NOT NULL
         )
       ''');
     }
@@ -481,5 +522,35 @@ class DatabaseHelper {
       where: 'key = ?',
       whereArgs: [key],
     );
+  }
+
+  // --- Presensi Operations ---
+  Future<void> insertPresensi(Presensi presensi) async {
+    if (kIsWeb) {
+      _loadWebData();
+      final newPresensi = presensi.copyWith(id: DateTime.now().millisecondsSinceEpoch);
+      _webPresensi.add(newPresensi);
+      _saveWebData();
+      return;
+    }
+    
+    final db = await instance.database;
+    await db.insert('presensi', presensi.toMap());
+  }
+
+  Future<List<Presensi>> getPresensiByUser(String username) async {
+    if (kIsWeb) {
+      _loadWebData();
+      return _webPresensi.where((p) => p.username == username).toList().reversed.toList();
+    }
+    
+    final db = await instance.database;
+    final maps = await db.query(
+      'presensi',
+      where: 'username = ?',
+      whereArgs: [username],
+      orderBy: 'id DESC'
+    );
+    return maps.map((json) => Presensi.fromMap(json)).toList();
   }
 }

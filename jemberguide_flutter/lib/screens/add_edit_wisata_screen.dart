@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:math';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../providers/jember_provider.dart';
 
 class AddEditWisataScreen extends StatefulWidget {
@@ -13,10 +15,9 @@ class AddEditWisataScreen extends StatefulWidget {
 }
 
 class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
-  bool _isGeocoding = false;
-  bool _isApifySearching = false;
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
+  TextEditingController? _autoCompleteController;
   final _descriptionController = TextEditingController();
   final _ticketPriceController = TextEditingController();
   final _openingHoursController = TextEditingController();
@@ -25,13 +26,16 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
   final _longitudeController = TextEditingController();
   final _imageUrlController = TextEditingController();
 
+  final MapController _mapController = MapController();
+  LatLng? _pickedLocation;
+
   final List<String> categories = [
     'Pantai',
     'Air Terjun',
     'Taman',
-    'Edukasi',
+    'Kolam Renang',
     'Alam',
-    'Keluarga'
+    'Gunung/Bukit'
   ];
   String _selectedCategory = 'Pantai';
 
@@ -57,11 +61,11 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
         _latitudeController.text = spot.latitude.toString();
         _longitudeController.text = spot.longitude.toString();
         _imageUrlController.text = spot.imageUrl;
+        _pickedLocation = LatLng(spot.latitude, spot.longitude);
         
         if (categories.contains(spot.category)) {
           _selectedCategory = spot.category;
         } else if (spot.category.isNotEmpty) {
-          // If category is not in list (e.g. from custom added earlier), select the first or Pantai
           _selectedCategory = categories.first;
         }
       }
@@ -81,185 +85,6 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
     _longitudeController.dispose();
     _imageUrlController.dispose();
     super.dispose();
-  }
-
-  Future<void> _geocodeAddressFallback(String address) async {
-    if (address.isEmpty) return;
-
-    setState(() => _isGeocoding = true);
-
-    try {
-      final url = 'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(address)}&format=json&limit=1';
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'User-Agent': 'jemberguide_flutter'},
-      );
-
-      if (response.statusCode == 200) {
-        final list = json.decode(response.body) as List;
-        if (list.isNotEmpty) {
-          final lat = double.tryParse(list[0]['lat'].toString()) ?? 0.0;
-          final lon = double.tryParse(list[0]['lon'].toString()) ?? 0.0;
-          setState(() {
-            _latitudeController.text = lat.toString();
-            _longitudeController.text = lon.toString();
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Koordinat ditemukan! Lat: $lat, Lng: $lon'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
-          return;
-        }
-      }
-    } catch (e) {
-      debugPrint('Geocoding error: $e');
-    } finally {
-      setState(() => _isGeocoding = false);
-    }
-
-    // Fallback: match known Jember spots offline
-    final addressLower = address.toLowerCase();
-    double? fallbackLat;
-    double? fallbackLng;
-
-    if (addressLower.contains('papuma')) {
-      fallbackLat = -8.4419;
-      fallbackLng = 113.5539;
-    } else if (addressLower.contains('love') || addressLower.contains('payangan')) {
-      fallbackLat = -8.4352;
-      fallbackLng = 113.6190;
-    } else if (addressLower.contains('rembangan')) {
-      fallbackLat = -8.0827;
-      fallbackLng = 113.7121;
-    } else if (addressLower.contains('tancak')) {
-      fallbackLat = -8.0333;
-      fallbackLng = 113.6167;
-    } else if (addressLower.contains('watu ulo')) {
-      fallbackLat = -8.4338;
-      fallbackLng = 113.6067;
-    } else if (addressLower.contains('sari') || addressLower.contains('kebun')) {
-      fallbackLat = -8.2917;
-      fallbackLng = 113.8208;
-    } else {
-      fallbackLat = -8.1845;
-      fallbackLng = 113.6681;
-    }
-
-    setState(() {
-      _latitudeController.text = fallbackLat!.toString();
-      _longitudeController.text = fallbackLng!.toString();
-    });
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Alamat tidak ditemukan online. Menggunakan koordinat perkiraan Jember: $fallbackLat, $fallbackLng'),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  Future<void> _searchGoogleMapsApify(String query) async {
-    if (query.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ketik kata kunci pencarian terlebih dahulu!'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isApifySearching = true);
-
-    try {
-      final tokenPart1 = 'apify_api_';
-      final tokenPart2 = 'k9hwP4V69wgZ3V2yc44VhuxgQg7h1W1zzpvI';
-      final url = 'https://api.apify.com/v2/acts/apify~google-maps-scraper/run-sync-get-dataset-items?token=$tokenPart1$tokenPart2';
-      
-      final payload = {
-        'searchStringsArray': ['$query, Jember'],
-        'locationQuery': 'Jember, Indonesia',
-        'maxCrawledPlacesPerSearch': 1,
-        'maxCrawledPlaces': 1,
-      };
-
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(payload),
-      ).timeout(const Duration(seconds: 45));
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final list = json.decode(response.body);
-        if (list is List && list.isNotEmpty) {
-          final place = list[0] as Map<String, dynamic>;
-          
-          final title = place['title'] ?? place['name'];
-          final address = place['address'] ?? place['address_formatted'] ?? place['street'];
-          final location = place['location'];
-          final ratingVal = place['rating'];
-          final imageUrlsList = place['imageUrls'] ?? place['images'];
-          
-          setState(() {
-            if (title != null && _nameController.text.trim().isEmpty) {
-              _nameController.text = title.toString();
-            }
-            if (address != null) {
-              _addressController.text = address.toString();
-            }
-            if (location is Map) {
-              final lat = location['lat'] ?? location['latitude'] ?? 0.0;
-              final lng = location['lng'] ?? location['longitude'] ?? 0.0;
-              _latitudeController.text = lat.toString();
-              _longitudeController.text = lng.toString();
-            } else if (place['latitude'] != null && place['longitude'] != null) {
-              _latitudeController.text = place['latitude'].toString();
-              _longitudeController.text = place['longitude'].toString();
-            }
-            if (ratingVal != null) {
-              _ratingController.text = ratingVal.toString();
-            }
-            if (imageUrlsList is List && imageUrlsList.isNotEmpty) {
-              _imageUrlController.text = imageUrlsList[0].toString();
-            } else if (place['imageUrl'] != null) {
-              _imageUrlController.text = place['imageUrl'].toString();
-            }
-          });
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Berhasil mengambil data & gambar dari Google Maps (Apify)!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
-          return;
-        }
-      }
-    } catch (e) {
-      debugPrint('Apify API error: $e');
-    } finally {
-      setState(() => _isApifySearching = false);
-    }
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pencarian Google Maps Apify gagal. Menggunakan pencarian cadangan...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-    await _geocodeAddressFallback(query);
   }
 
   void _generateApiImage() {
@@ -284,12 +109,47 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
     );
   }
 
+  Future<void> _getAddressFromGeoapify(LatLng point) async {
+    final apiKey = 'd1f1fe16f7aa4021bd3d22c8e7e2111c';
+    final url = Uri.parse(
+      'https://api.geoapify.com/v1/geocode/reverse?lat=${point.latitude}&lon=${point.longitude}&apiKey=$apiKey'
+    );
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['features'] != null && data['features'].isNotEmpty) {
+          final address = data['features'][0]['properties']['formatted'];
+          if (address != null) {
+            if (!mounted) return;
+            setState(() {
+              _addressController.text = address;
+              if (_autoCompleteController != null) {
+                _autoCompleteController!.text = address;
+              }
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Alamat berhasil dideteksi otomatis!'),
+                backgroundColor: Color(0xFF8F4C38),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Geoapify Reverse Geocoding Error: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<JemberProvider>(context);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(
           _spotId == null ? 'Tambah Wisata Baru' : 'Edit Tempat Wisata',
@@ -301,7 +161,7 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Theme.of(context).colorScheme.onBackground,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -327,23 +187,6 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
                 decoration: InputDecoration(
                   labelText: 'Nama Wisata *',
                   prefixIcon: const Icon(Icons.drive_file_rename_outline),
-                  suffixIcon: _isApifySearching
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF8F4C38),
-                            ),
-                          ),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.travel_explore, color: Color(0xFFE57E22)),
-                          tooltip: 'Autofill data dari Google Maps (Apify)',
-                          onPressed: () => _searchGoogleMapsApify(_nameController.text),
-                        ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12.0),
                   ),
@@ -386,38 +229,69 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Alamat Lengkap
-              TextField(
-                key: const Key('form_address_input'),
-                controller: _addressController,
-                decoration: InputDecoration(
-                  labelText: 'Alamat Lengkap *',
-                  prefixIcon: const Icon(Icons.location_on),
-                  suffixIcon: _isApifySearching || _isGeocoding
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF8F4C38),
-                            ),
-                          ),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.search, color: Color(0xFF8F4C38)),
-                          tooltip: 'Cari Detail Wisata dari Alamat (Apify)',
-                          onPressed: () => _searchGoogleMapsApify(_addressController.text),
-                        ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12.0),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12.0),
-                    borderSide: const BorderSide(color: Color(0xFF8F4C38), width: 2),
-                  ),
-                ),
+              // Alamat Lengkap (Autocomplete)
+              Autocomplete<Map<String, dynamic>>(
+                initialValue: TextEditingValue(text: _addressController.text),
+                optionsBuilder: (TextEditingValue textEditingValue) async {
+                  if (textEditingValue.text.length < 3) {
+                    return const Iterable<Map<String, dynamic>>.empty();
+                  }
+                  final apiKey = 'd1f1fe16f7aa4021bd3d22c8e7e2111c';
+                  final url = Uri.parse('https://api.geoapify.com/v1/geocode/autocomplete?text=${Uri.encodeComponent(textEditingValue.text)}&apiKey=$apiKey&lang=id&limit=5');
+                  try {
+                    final response = await http.get(url);
+                    if (response.statusCode == 200) {
+                      final data = json.decode(response.body);
+                      final features = data['features'] as List;
+                      return features.map((f) => f['properties'] as Map<String, dynamic>).toList();
+                    }
+                  } catch (e) {
+                    debugPrint('Autocomplete Error: $e');
+                  }
+                  return const Iterable<Map<String, dynamic>>.empty();
+                },
+                displayStringForOption: (Map<String, dynamic> option) => option['formatted'] ?? '',
+                onSelected: (Map<String, dynamic> selection) {
+                  final formatted = selection['formatted'] ?? '';
+                  _addressController.text = formatted;
+                  if (_autoCompleteController != null) {
+                     _autoCompleteController!.text = formatted;
+                  }
+                  if (selection['lat'] != null && selection['lon'] != null) {
+                    final lat = (selection['lat'] as num).toDouble();
+                    final lon = (selection['lon'] as num).toDouble();
+                    setState(() {
+                      _latitudeController.text = lat.toString();
+                      _longitudeController.text = lon.toString();
+                      _pickedLocation = LatLng(lat, lon);
+                      _mapController.move(_pickedLocation!, 14.0);
+                    });
+                  }
+                },
+                fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                  if (_autoCompleteController != textEditingController) {
+                    _autoCompleteController = textEditingController;
+                  }
+                  return TextField(
+                    key: const Key('form_address_input'),
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    onChanged: (val) {
+                      _addressController.text = val;
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Cari Alamat Lengkap (Ketik untuk mencari) *',
+                      prefixIcon: const Icon(Icons.location_searching),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                        borderSide: const BorderSide(color: Color(0xFF8F4C38), width: 2),
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 14),
 
@@ -492,8 +366,18 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
                       key: const Key('form_lat_input'),
                       controller: _latitudeController,
                       keyboardType: TextInputType.number,
+                      onChanged: (val) {
+                        final lat = double.tryParse(val);
+                        final lng = double.tryParse(_longitudeController.text);
+                        if (lat != null && lng != null) {
+                          setState(() {
+                            _pickedLocation = LatLng(lat, lng);
+                            _mapController.move(_pickedLocation!, _mapController.camera.zoom);
+                          });
+                        }
+                      },
                       decoration: InputDecoration(
-                        labelText: 'Latitude (misal: -8.441)',
+                        labelText: 'Latitude',
                         prefixIcon: const Icon(Icons.map),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.0),
@@ -511,8 +395,18 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
                       key: const Key('form_lng_input'),
                       controller: _longitudeController,
                       keyboardType: TextInputType.number,
+                      onChanged: (val) {
+                        final lng = double.tryParse(val);
+                        final lat = double.tryParse(_latitudeController.text);
+                        if (lat != null && lng != null) {
+                          setState(() {
+                            _pickedLocation = LatLng(lat, lng);
+                            _mapController.move(_pickedLocation!, _mapController.camera.zoom);
+                          });
+                        }
+                      },
                       decoration: InputDecoration(
-                        labelText: 'Longitude (misal: 113.55)',
+                        labelText: 'Longitude',
                         prefixIcon: const Icon(Icons.map),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.0),
@@ -525,6 +419,58 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 14),
+
+              // Interactive Leaflet Map Picker
+              const Text(
+                'Pilih Lokasi di Peta',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 250,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border.all(color: Colors.grey.shade400),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _pickedLocation ?? const LatLng(-8.1724, 113.6995), // Default to Jember
+                    initialZoom: 11.0,
+                    onTap: (tapPosition, point) {
+                      setState(() {
+                        _pickedLocation = point;
+                        _latitudeController.text = point.latitude.toString();
+                        _longitudeController.text = point.longitude.toString();
+                      });
+                      _getAddressFromGeoapify(point);
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.jemberguide_flutter',
+                    ),
+                    if (_pickedLocation != null)
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: _pickedLocation!,
+                            width: 40,
+                            height: 40,
+                            child: const Icon(
+                              Icons.location_pin,
+                              color: Colors.red,
+                              size: 40,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
 

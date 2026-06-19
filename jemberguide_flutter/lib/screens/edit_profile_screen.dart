@@ -42,7 +42,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = provider.currentUser;
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text(
           'Edit Profil',
@@ -54,7 +54,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Theme.of(context).colorScheme.onBackground,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -67,7 +67,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 width: 100,
                 height: 100,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF8F4C38).withOpacity(0.1), // PrimaryGreen 10%
+                  color: const Color(0xFF8F4C38).withValues(alpha: 0.1), // PrimaryGreen 10%
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -94,7 +94,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 'Lengkapi detail informasi akun Anda di bawah ini',
                 style: TextStyle(
                   fontSize: 12,
-                  color: const Color(0xFF201A19).withOpacity(0.5),
+                  color: const Color(0xFF201A19).withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(height: 28),

@@ -8,8 +8,15 @@ import 'screens/home_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/add_edit_wisata_screen.dart';
 import 'screens/edit_profile_screen.dart';
+import 'screens/presensi_screen.dart';
+import 'screens/histori_presensi_screen.dart';
+import 'screens/explore_map_screen.dart';
+import 'providers/presensi_provider.dart';
+
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 void main() {
+  usePathUrlStrategy();
   runApp(const JemberGuideApp());
 }
 
@@ -21,6 +28,7 @@ class JemberGuideApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => JemberProvider()..loadAllWisata()),
+        ChangeNotifierProvider(create: (_) => PresensiProvider()),
       ],
       child: MaterialApp(
         title: 'Jember Guide',
@@ -36,8 +44,6 @@ class JemberGuideApp extends StatelessWidget {
             onTertiary: Colors.white,
             error: Colors.red,
             onError: Colors.white,
-            background: Color(0xFFFDF8F6),
-            onBackground: Color(0xFF201A19),
             surface: Color(0xFFFFFFFF),
             onSurface: Color(0xFF201A19),
           ),
@@ -53,6 +59,9 @@ class JemberGuideApp extends StatelessWidget {
           '/detail': (context) => const DetailScreen(),
           '/add_edit_wisata': (context) => const AddEditWisataScreen(),
           '/edit_profile': (context) => const EditProfileScreen(),
+          '/presensi': (context) => const PresensiScreen(),
+          '/histori_presensi': (context) => const HistoriPresensiScreen(),
+          '/explore_map': (context) => const ExploreMapScreen(),
         },
       ),
     );

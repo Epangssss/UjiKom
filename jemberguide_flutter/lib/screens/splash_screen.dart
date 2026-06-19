@@ -75,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       width: 140,
                       height: 140,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -102,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.normal,
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -122,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 'Uji Kompetensi Keahlian • v1.0',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                 ),
               ),
             ),

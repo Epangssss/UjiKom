@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../providers/jember_provider.dart';
 
 class DetailScreen extends StatelessWidget {
@@ -35,7 +37,7 @@ class DetailScreen extends StatelessWidget {
     final spot = provider.allWisata[spotIndex];
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(
           spot.name,
@@ -105,7 +107,7 @@ class DetailScreen extends StatelessWidget {
         ],
         backgroundColor: Colors.transparent,
         elevation: 0,
-        foregroundColor: Theme.of(context).colorScheme.onBackground,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -141,7 +143,7 @@ class DetailScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.65),
+                      color: Colors.black.withValues(alpha: 0.65),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -171,7 +173,7 @@ class DetailScreen extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.65),
+                      color: Colors.black.withValues(alpha: 0.65),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -227,7 +229,7 @@ class DetailScreen extends StatelessWidget {
                           spot.address,
                           style: TextStyle(
                             fontSize: 14,
-                            color: const Color(0xFF201A19).withOpacity(0.8),
+                            color: const Color(0xFF201A19).withValues(alpha: 0.8),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -236,7 +238,7 @@ class DetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  Divider(color: Colors.black.withOpacity(0.1)),
+                  Divider(color: Colors.black.withValues(alpha: 0.1)),
                   const SizedBox(height: 16),
 
                   // Badges (Ticket Price and Jam Operasional)
@@ -277,43 +279,49 @@ class DetailScreen extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.5,
-                      color: const Color(0xFF201A19).withOpacity(0.7),
+                      color: const Color(0xFF201A19).withValues(alpha: 0.7),
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // Coordinates Panel
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(12),
+                  // Embedded Leaflet Map
+                  const Text(
+                    'Peta Lokasi',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF201A19),
                     ),
-                    child: Row(
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 200,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: FlutterMap(
+                      options: MapOptions(
+                        initialCenter: LatLng(spot.latitude, spot.longitude),
+                        initialZoom: 14.0,
+                      ),
                       children: [
-                        const Icon(
-                          Icons.map,
-                          color: Color(0xFF8F4C38),
-                          size: 24,
+                        TileLayer(
+                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          userAgentPackageName: 'com.example.jemberguide_flutter',
                         ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Koordinat Lokasi',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF756765), // TextMuted
-                              ),
-                            ),
-                            Text(
-                              'Lat: ${spot.latitude}, Lng: ${spot.longitude}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: const Color(0xFF756765).withOpacity(0.8),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: LatLng(spot.latitude, spot.longitude),
+                              width: 40,
+                              height: 40,
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Colors.red,
+                                size: 40,
                               ),
                             ),
                           ],
@@ -359,7 +367,7 @@ class DetailScreen extends StatelessWidget {
                       },
                       icon: const Icon(Icons.directions, color: Colors.white),
                       label: const Text(
-                        'Buka Rute Google Maps',
+                        'Buka Rute Navigasi Eksternal',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -402,10 +410,10 @@ class _DetailItemBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.05),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
           width: 1,
         ),
       ),
@@ -425,7 +433,7 @@ class _DetailItemBadge extends StatelessWidget {
                   title,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
