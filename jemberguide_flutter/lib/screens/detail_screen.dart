@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../providers/jember_provider.dart';
+import '../widgets/wisata_image_carousel.dart';
 
 class DetailScreen extends StatelessWidget {
   const DetailScreen({super.key});
@@ -116,25 +116,9 @@ class DetailScreen extends StatelessWidget {
             // Image section with category and rating overlay
             Stack(
               children: [
-                CachedNetworkImage(
-                  imageUrl: spot.imageUrl,
+                WisataImageCarousel(
+                  imageUrls: spot.imageUrls,
                   height: 280,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    height: 280,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF8F4C38),
-                      ),
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    height: 280,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.error, size: 48),
-                  ),
                 ),
                 // Category Pill Overlay
                 Positioned(

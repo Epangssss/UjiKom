@@ -11,6 +11,8 @@ import 'screens/edit_profile_screen.dart';
 import 'screens/presensi_screen.dart';
 import 'screens/histori_presensi_screen.dart';
 import 'screens/explore_map_screen.dart';
+import 'screens/admin_add_user_screen.dart';
+import 'screens/admin_add_presensi_screen.dart';
 import 'providers/presensi_provider.dart';
 
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -62,6 +64,8 @@ class JemberGuideApp extends StatelessWidget {
           '/presensi': (context) => const PresensiScreen(),
           '/histori_presensi': (context) => const HistoriPresensiScreen(),
           '/explore_map': (context) => const ExploreMapScreen(),
+          '/admin_add_user': (context) => const AdminAddUserScreen(),
+          '/admin_add_presensi': (context) => const AdminAddPresensiScreen(),
         },
       ),
     );

@@ -137,4 +137,40 @@ class PresensiProvider with ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> catatPresensiManual({
+    required String targetUsername,
+    required String date,
+    required String time,
+    required String status,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+
+    try {
+      final presensi = Presensi(
+        username: targetUsername,
+        date: date,
+        time: time,
+        latitude: -8.1724, // Default Jember lat
+        longitude: 113.6995, // Default Jember lng
+        address: "Dicatat Manual oleh Admin",
+        status: status,
+      );
+
+      await _dbHelper.insertPresensi(presensi);
+      _successMessage = "Presensi manual untuk $targetUsername berhasil dicatat!";
+      
+      // Reload histori if the admin is viewing their own (unlikely, but good practice)
+      // or we can just leave it as is.
+
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll("Exception: ", "");
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

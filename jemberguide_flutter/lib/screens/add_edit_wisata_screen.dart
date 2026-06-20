@@ -24,7 +24,7 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
   final _ratingController = TextEditingController();
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
-  final _imageUrlController = TextEditingController();
+  final List<TextEditingController> _imageUrlControllers = [TextEditingController()];
 
   final MapController _mapController = MapController();
   LatLng? _pickedLocation;
@@ -60,7 +60,16 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
         _ratingController.text = spot.rating.toString();
         _latitudeController.text = spot.latitude.toString();
         _longitudeController.text = spot.longitude.toString();
-        _imageUrlController.text = spot.imageUrl;
+        
+        _imageUrlControllers.clear();
+        if (spot.imageUrls.isEmpty) {
+          _imageUrlControllers.add(TextEditingController());
+        } else {
+          for (var url in spot.imageUrls) {
+            _imageUrlControllers.add(TextEditingController(text: url));
+          }
+        }
+        
         _pickedLocation = LatLng(spot.latitude, spot.longitude);
         
         if (categories.contains(spot.category)) {
@@ -83,7 +92,9 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
     _ratingController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
-    _imageUrlController.dispose();
+    for (var c in _imageUrlControllers) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -97,7 +108,11 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
     final imageUrl = 'https://loremflickr.com/800/600/${Uri.encodeComponent(keyword)}/all?lock=$randomInt';
 
     setState(() {
-      _imageUrlController.text = imageUrl;
+      if (_imageUrlControllers.isEmpty) {
+        _imageUrlControllers.add(TextEditingController(text: imageUrl));
+      } else {
+        _imageUrlControllers.first.text = imageUrl;
+      }
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -201,7 +216,7 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
               // Category dropdown
               DropdownButtonFormField<String>(
                 key: const Key('form_category_dropdown'),
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 decoration: InputDecoration(
                   labelText: 'Kategori Wisata *',
                   prefixIcon: const Icon(Icons.category),
@@ -237,13 +252,36 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
                     return const Iterable<Map<String, dynamic>>.empty();
                   }
                   final apiKey = 'd1f1fe16f7aa4021bd3d22c8e7e2111c';
-                  final url = Uri.parse('https://api.geoapify.com/v1/geocode/autocomplete?text=${Uri.encodeComponent(textEditingValue.text)}&apiKey=$apiKey&lang=id&limit=5');
+                  // Memaksa kata 'Jember' dalam pencarian agar API fokus ke Jember
+                  final searchQuery = textEditingValue.text.toLowerCase().contains('jember')
+                      ? textEditingValue.text
+                      : '${textEditingValue.text} Jember';
+                  
+                  // Menggunakan filter seluruh Indonesia + bias lokasi ke tengah Jember agar tidak ada tempat di Jember yang terpotong
+                  final url = Uri.parse('https://api.geoapify.com/v1/geocode/autocomplete?text=${Uri.encodeComponent(searchQuery)}&apiKey=$apiKey&lang=id&limit=10&filter=countrycode:id&bias=proximity:113.6995,-8.1724');
                   try {
                     final response = await http.get(url);
                     if (response.statusCode == 200) {
                       final data = json.decode(response.body);
                       final features = data['features'] as List;
-                      return features.map((f) => f['properties'] as Map<String, dynamic>).toList();
+                      final rawOptions = features.map((f) => f['properties'] as Map<String, dynamic>).toList();
+                      
+                      // Filter ketat hasil di sisi aplikasi: Harus ada kaitan dengan Jember
+                      final filteredOptions = rawOptions.where((opt) {
+                        final formatted = (opt['formatted'] ?? '').toString().toLowerCase();
+                        final county = (opt['county'] ?? '').toString().toLowerCase();
+                        final city = (opt['city'] ?? '').toString().toLowerCase();
+                        final stateDistrict = (opt['state_district'] ?? '').toString().toLowerCase();
+                        final name = (opt['name'] ?? '').toString().toLowerCase();
+                        
+                        return formatted.contains('jember') || 
+                               county.contains('jember') || 
+                               city.contains('jember') ||
+                               stateDistrict.contains('jember') ||
+                               name.contains('jember');
+                      }).toList();
+
+                      return filteredOptions;
                     }
                   } catch (e) {
                     debugPrint('Autocomplete Error: $e');
@@ -474,53 +512,84 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Rating & Image URL Row
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      key: const Key('form_rating_input'),
-                      controller: _ratingController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Rating (1.0 - 5.0)',
-                        prefixIcon: const Icon(Icons.star),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                          borderSide: const BorderSide(color: Color(0xFF8F4C38), width: 2),
-                        ),
-                      ),
-                    ),
+              // Rating Input
+              TextField(
+                key: const Key('form_rating_input'),
+                controller: _ratingController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Rating (1.0 - 5.0)',
+                  prefixIcon: const Icon(Icons.star),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 3,
-                    child: TextField(
-                      key: const Key('form_image_input'),
-                      controller: _imageUrlController,
-                      decoration: InputDecoration(
-                        labelText: 'URL Gambar Wisata',
-                        prefixIcon: const Icon(Icons.image),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.auto_awesome, color: Color(0xFFE57E22)),
-                          tooltip: 'Gunakan Gambar API Otomatis',
-                          onPressed: _generateApiImage,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.0),
-                          borderSide: const BorderSide(color: Color(0xFF8F4C38), width: 2),
-                        ),
-                      ),
-                    ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: const BorderSide(color: Color(0xFF8F4C38), width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Image URLs
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Daftar URL Gambar Wisata',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextButton.icon(
+                    onPressed: _generateApiImage,
+                    icon: const Icon(Icons.auto_awesome, color: Color(0xFFE57E22)),
+                    label: const Text('Auto-Generate'),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+              ...List.generate(_imageUrlControllers.length, (index) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _imageUrlControllers[index],
+                          decoration: InputDecoration(
+                            labelText: 'URL Gambar ${index + 1}',
+                            prefixIcon: const Icon(Icons.image),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                              borderSide: const BorderSide(color: Color(0xFF8F4C38), width: 2),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_imageUrlControllers.length > 1)
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            setState(() {
+                              _imageUrlControllers[index].dispose();
+                              _imageUrlControllers.removeAt(index);
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                );
+              }),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _imageUrlControllers.add(TextEditingController());
+                  });
+                },
+                icon: const Icon(Icons.add_photo_alternate),
+                label: const Text('Tambah URL Gambar Lainnya'),
               ),
               const SizedBox(height: 32),
 
@@ -539,7 +608,10 @@ class _AddEditWisataScreenState extends State<AddEditWisataScreen> {
                     final rating = double.tryParse(_ratingController.text) ?? 4.5;
                     final latitude = double.tryParse(_latitudeController.text) ?? 0.0;
                     final longitude = double.tryParse(_longitudeController.text) ?? 0.0;
-                    final imageUrl = _imageUrlController.text;
+                    final imageUrl = _imageUrlControllers
+                        .map((c) => c.text.trim())
+                        .where((text) => text.isNotEmpty)
+                        .join('|');
 
                     if (name.trim().isEmpty || address.trim().isEmpty || description.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(

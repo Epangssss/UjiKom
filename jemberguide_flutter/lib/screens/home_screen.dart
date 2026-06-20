@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/jember_provider.dart';
+import '../widgets/wisata_image_carousel.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -124,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   Row(
                     children: [
+
                       // Profile Button
                       Container(
                         decoration: BoxDecoration(
@@ -211,6 +212,47 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+
+            // Admin Panel Actions
+            if (provider.isAdmin)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16.0, 0, 16.0, 8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pushNamed(context, '/admin_add_user'),
+                        icon: const Icon(Icons.person_add),
+                        label: const Text('Tambah User',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.pushNamed(context, '/admin_add_presensi'),
+                        icon: const Icon(Icons.add_task),
+                        label: const Text('Isi Presensi',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepOrange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // Live Overpass Map Button
             Padding(
@@ -416,26 +458,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                 // Image section
                                 Stack(
                                   children: [
-                                    CachedNetworkImage(
-                                      imageUrl: spot.imageUrl,
+                                    WisataImageCarousel(
+                                      imageUrls: spot.imageUrls,
                                       height: 160,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) => Container(
-                                        height: 160,
-                                        color: Colors.grey[200],
-                                        child: const Center(
-                                          child: CircularProgressIndicator(
-                                            color: Color(0xFF8F4C38),
-                                          ),
-                                        ),
-                                      ),
-                                      errorWidget: (context, url, error) =>
-                                          Container(
-                                        height: 160,
-                                        color: Colors.grey[200],
-                                        child: const Icon(Icons.error),
-                                      ),
                                     ),
                                     // Category Pill
                                     Positioned(

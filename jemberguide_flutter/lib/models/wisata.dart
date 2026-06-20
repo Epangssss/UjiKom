@@ -11,6 +11,12 @@ class Wisata {
   final double longitude;
   final String imageUrl;
 
+  // Helper untuk mendapatkan list URL (dipisahkan oleh tanda '|')
+  List<String> get imageUrls {
+    if (imageUrl.isEmpty) return [];
+    return imageUrl.split('|').where((url) => url.trim().isNotEmpty).toList();
+  }
+
   Wisata({
     this.id,
     required this.name,

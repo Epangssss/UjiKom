@@ -10,11 +10,17 @@ class JemberProvider with ChangeNotifier {
   User? _currentUser;
   User? get currentUser => _currentUser;
 
+  bool get isAdmin => _currentUser?.role == 'admin';
+
   String? _authError;
   String? get authError => _authError;
 
   bool _registrationSuccess = false;
   bool get registrationSuccess => _registrationSuccess;
+
+  // Admin State
+  List<User> _allUsers = [];
+  List<User> get allUsers => _allUsers;
 
   // Wisata State
   List<Wisata> _allWisata = [];
@@ -105,11 +111,50 @@ class JemberProvider with ChangeNotifier {
       password: password,
       fullName: fullName,
       email: email,
+      role: 'user',
     );
 
     await _dbHelper.insertUser(newUser);
     _registrationSuccess = true;
     notifyListeners();
+  }
+
+  Future<void> registerUserByAdmin(String username, String password, String fullName, String email, String role) async {
+    _authError = null;
+    _registrationSuccess = false;
+    
+    if (username.trim().isEmpty || password.trim().isEmpty || fullName.trim().isEmpty || email.trim().isEmpty) {
+      _authError = "Semua kolom wajib diisi";
+      notifyListeners();
+      return;
+    }
+
+    final existingUser = await _dbHelper.getUser(username);
+    if (existingUser != null) {
+      _authError = "Username sudah digunakan";
+      notifyListeners();
+      return;
+    }
+
+    final newUser = User(
+      username: username,
+      password: password,
+      fullName: fullName,
+      email: email,
+      role: role,
+    );
+
+    await _dbHelper.insertUser(newUser);
+    _registrationSuccess = true;
+    _crudMessage = "User baru berhasil ditambahkan";
+    await loadAllUsers(); // Reload the list
+  }
+
+  Future<void> loadAllUsers() async {
+    if (isAdmin) {
+      _allUsers = await _dbHelper.getAllUsers();
+      notifyListeners();
+    }
   }
 
   Future<void> logOut() async {

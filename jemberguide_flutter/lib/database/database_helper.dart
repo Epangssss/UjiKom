@@ -144,7 +144,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -156,7 +156,8 @@ class DatabaseHelper {
         username TEXT PRIMARY KEY,
         password TEXT NOT NULL,
         fullName TEXT NOT NULL,
-        email TEXT NOT NULL
+        email TEXT NOT NULL,
+        role TEXT DEFAULT 'user'
       )
     ''');
 
@@ -232,6 +233,11 @@ class DatabaseHelper {
           status TEXT NOT NULL
         )
       ''');
+    }
+    if (oldVersion < 5) {
+      await db.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
+      // Jika admin login sebelumnya, kita paksa ia jadi admin
+      await db.execute("UPDATE users SET role = 'admin' WHERE username = 'admin'");
     }
   }
 
@@ -340,6 +346,18 @@ class DatabaseHelper {
     } else {
       return null;
     }
+  }
+
+  Future<List<User>> getAllUsers() async {
+    if (kIsWeb) {
+      _loadWebData();
+      _seedWebIfNeeded();
+      return List.from(_webUsers);
+    }
+    
+    final db = await instance.database;
+    final maps = await db.query('users');
+    return maps.map((json) => User.fromMap(json)).toList();
   }
 
   Future<void> insertUser(User user) async {
